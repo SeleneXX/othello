@@ -33,6 +33,12 @@ TEXTCOLOR = WHITE
 HINTCOLOR = BROWN
 RECOMMENDCOLOR = RED
 
+class board(object):
+    def __init__(self):
+        self.width = BOARDWID
+        self.height = BOARDHEI
+
+
 def main():
     global MAINCLOCK, DISPLAYSURF, FONT, BIGFONT, BGIMAGE, ORIGINBGIMAGE
 
@@ -312,7 +318,7 @@ def runGame():
 
                 x,y = getComputerMove(mainBoard, computerTile)
                 makeMove(mainBoard, computerTile, x, y, True)
-                if getValidmoves(mainBoard, computerTile) != []:
+                if getValidmoves(mainBoard, playerTile) != []:
                     turn = player1     #回合结束，如果玩家能行动，则切换玩家回合
 
         drawBoard(mainBoard)
@@ -730,28 +736,68 @@ def makeMove(board, tile, xstart, ystart, realMove = False):
     return True
 
 def isOnCorner(x, y):
-    return (x == 0 and y == 0) or (x == BOARDWID and y == 0) or (x == 0 and y == BOARDHEI) or (x == BOARDWID and y == BOARDHEI)
+    return (x == 0 and y == 0) or (x == BOARDWID-1 and y == 0) or (x == 0 and y == BOARDHEI-1) or (x == BOARDWID-1 and y == BOARDHEI-1)
 
 def getComputerMove(board, computerTile):
     #电脑玩家算法
-    possibleMoves = getValidmoves(board, computerTile)
-    random.shuffle(possibleMoves)
+    # possibleMoves = getValidmoves(board, computerTile)
+    # random.shuffle(possibleMoves)
+    #
+    # for x, y in possibleMoves:
+    #     if isOnCorner(x,y):
+    #         return [x, y]
+    #
+    # bestScore = -1
+    #
+    # #复制一个新的棋盘，模拟所有可以走的位置，寻找分最高的位置
+    # for x, y in possibleMoves:
+    #     dupeBoard = copy.deepcopy(board)
+    #     makeMove(dupeBoard, computerTile, x, y)
+    #     score = getScoreOfBoard(dupeBoard)[computerTile]
+    #     if score > bestScore:
+    #         bestMove = [x, y]
+    #         bestScore = score
+    # return bestMove
+    return prophet(board, computerTile)
 
+def prophet(board, tile):
+    if tile == BLACK_TILE:
+        othertile = WHITE_TILE
+    else:
+        othertile = BLACK_TILE
+    possibleMoves = getValidmoves(board, tile)
+    values = [[-1000] * 8] * 8
     for x, y in possibleMoves:
         if isOnCorner(x,y):
-            return [x, y]
+            values[x][y] = 1000
+        else:
+            dupeboard = copy.deepcopy(board)
+            scores = [0]
+            if isValidMove(dupeboard,tile, x, y):
+                score = len(isValidMove(dupeboard, tile, x, y))
+                values[x][y] = score
+            makeMove(dupeboard, tile, x, y)
+            prophetpossibleMoves = getValidmoves(dupeboard, othertile)
+            for a, b in prophetpossibleMoves:
+                if isOnCorner(a, b):
+                    values[x][y] -= 800
+                    break
+                else:
+                    dupeboard1 = copy.deepcopy(dupeboard)
 
-    bestScore = -1
+                    if isValidMove(dupeboard1, othertile, a, b):
+                        score = len(isValidMove(dupeboard1, othertile, a, b))
+                        scores.append(score)
+            scores.sort(reverse=True)
+            values[x][y] -= 0.8 * scores[0]
 
-    #复制一个新的棋盘，模拟所有可以走的位置，寻找分最高的位置
+    bestvalue = 0
+    bestmove = random.choice(possibleMoves)
     for x, y in possibleMoves:
-        dupeBoard = copy.deepcopy(board)
-        makeMove(dupeBoard, computerTile, x, y)
-        score = getScoreOfBoard(dupeBoard)[computerTile]
-        if score > bestScore:
-            bestMove = [x, y]
-            bestScore = score
-    return bestMove
+        if values[x][y] >= bestvalue:
+            bestvalue = values[x][y]
+            bestmove = [x, y]
+    return bestmove
 
 def checkForQuit():
     for event in pygame.event.get((pygame.QUIT, pygame.KEYUP)):
