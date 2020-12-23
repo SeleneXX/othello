@@ -1,4 +1,5 @@
 import random, sys, pygame, time, copy
+import numpy as np
 #基础设定，窗口大小，游戏帧数
 FPS = 10
 WINDOWWID = 960
@@ -33,10 +34,43 @@ TEXTCOLOR = WHITE
 HINTCOLOR = BROWN
 RECOMMENDCOLOR = RED
 
-class board(object):
+class nowboard(object):
     def __init__(self):
         self.width = BOARDWID
         self.height = BOARDHEI
+        self.state = {}
+        self.available = []
+        self.players = [1, 2]  # player1 and player2
+        self.player1tile = BLACK_TILE
+        self.player2tile = WHITE_TILE
+        self.lastmove = []
+
+    def getBoardState(self, board):
+        currentstate = np.zeros((4, self.width, self.height))
+        for x in range(self.width):
+            for y in range(self.height):
+                if board[x][y] == self.tile:
+                    currentstate[0][x][y] = 1
+                elif board[1][x][y] == self.player2tile:
+                    currentstate[1][x][y] = 1
+        currentstate[3][self.lastmove[0]][self.lastmove[1]]
+        if len(self.states) % 2 == 0:
+            currentstate[3][:, :] = 1.0  # indicate the colour to play
+        return currentstate[:, ::-1, :]
+
+    def availablemoves(self, board, tile):
+        self.available = getValidmoves(board, tile)
+
+    def setTile(self, tile):
+        self.tile = tile
+
+    def tilechange(self):
+        if self.tile == BLACK_TILE:
+            self.setTile(WHITE_TILE)
+        elif self.tile == WHITE_TILE:
+            self.setTile(BLACK_TILE)
+
+
 
 
 def main():
@@ -367,7 +401,8 @@ def runGame():
         player1 = 'computer1'
         player2 = 'computer2'
         drawBoard(mainBoard)
-        computer1Tile = random.choice([BLACK_TILE, WHITE_TILE])
+        # computer1Tile = random.choice([BLACK_TILE, WHITE_TILE])
+        computer1Tile = BLACK_TILE
         newGameSurf = FONT.render('New game', True, TEXTCOLOR, TEXTBGCOLOR2)  # 右上角功能
         newgameRect = newGameSurf.get_rect()
         newgameRect.topright = (WINDOWWID - 8, 10)
@@ -421,7 +456,7 @@ def runGame():
                 while time.time() < pauseUntil:
                     pygame.display.update()
 
-                x, y = getComputerMove(mainBoard, computer2Tile)
+                x, y = prophet(mainBoard, computer2Tile)
                 makeMove(mainBoard, computer2Tile, x, y, True)
                 if getValidmoves(mainBoard, computer1Tile) != []:
                     turn = player1  # 回合结束，如果电脑玩家1能行动，则切换电脑玩家1回合
@@ -433,7 +468,7 @@ def runGame():
         if scores[computer1Tile] > scores[computer2Tile]:  # 判断游戏结果
             text = 'Computer1 win!'
         elif scores[computer1Tile] < scores[computer2Tile]:
-            text = 'Computer2 loss!'
+            text = 'Computer2 win!'
         else:
             text = 'The game was a tie!'
 
@@ -540,11 +575,11 @@ def getSpaceClicked(mouseX, mouseY):            #捕捉鼠标点击的格子
 def drawInfo(board, player1, player2, player1Tile, player2Tile, turn):            #在屏幕底部画出得分和谁的回合
     scores = getScoreOfBoard(board)
     if player1Tile == WHITE_TILE:
-        p1 = 'Black'
-        p2 = 'White'
-    else:
         p1 = 'White'
         p2 = 'Black'
+    else:
+        p1 = 'Black'
+        p2 = 'White'
 
     scoreSurf = FONT.render("{} Score({}): {}  {} Score({}): {}  {}'s turn".format(player1, p1, scores[player1Tile], player2, p2, scores[player2Tile], turn), True, TEXTCOLOR, TEXTBGCOLOR1)
     scoreRect = scoreSurf.get_rect()
@@ -560,6 +595,7 @@ def resetBoard(board):
     board[4][4] = WHITE_TILE
     board[3][4] = BLACK_TILE
     board[4][3] = BLACK_TILE
+    # getBoardState(board)
 
 def getNewBoard():
     #新建棋盘，棋盘由一个二维列表保存
@@ -567,6 +603,7 @@ def getNewBoard():
     for i in range(BOARDWID):
         board.append([EMPTY_SPACE] * 8)
     return board
+
 
 def isValidMove(board, tile, xstart, ystart):
     #判断玩家行动是否合法，若不合法返回错误，若合法返回要翻转的棋子列表
@@ -740,25 +777,24 @@ def isOnCorner(x, y):
 
 def getComputerMove(board, computerTile):
     #电脑玩家算法
-    # possibleMoves = getValidmoves(board, computerTile)
-    # random.shuffle(possibleMoves)
-    #
-    # for x, y in possibleMoves:
-    #     if isOnCorner(x,y):
-    #         return [x, y]
-    #
-    # bestScore = -1
-    #
-    # #复制一个新的棋盘，模拟所有可以走的位置，寻找分最高的位置
-    # for x, y in possibleMoves:
-    #     dupeBoard = copy.deepcopy(board)
-    #     makeMove(dupeBoard, computerTile, x, y)
-    #     score = getScoreOfBoard(dupeBoard)[computerTile]
-    #     if score > bestScore:
-    #         bestMove = [x, y]
-    #         bestScore = score
-    # return bestMove
-    return prophet(board, computerTile)
+    possibleMoves = getValidmoves(board, computerTile)
+    random.shuffle(possibleMoves)
+
+    for x, y in possibleMoves:
+        if isOnCorner(x,y):
+            return [x, y]
+
+    bestScore = -1
+
+    #复制一个新的棋盘，模拟所有可以走的位置，寻找分最高的位置
+    for x, y in possibleMoves:
+        dupeBoard = copy.deepcopy(board)
+        makeMove(dupeBoard, computerTile, x, y)
+        score = getScoreOfBoard(dupeBoard)[computerTile]
+        if score > bestScore:
+            bestMove = [x, y]
+            bestScore = score
+    return bestMove
 
 def prophet(board, tile):
     if tile == BLACK_TILE:
@@ -766,30 +802,36 @@ def prophet(board, tile):
     else:
         othertile = BLACK_TILE
     possibleMoves = getValidmoves(board, tile)
-    values = [[-1000] * 8] * 8
+    values = np.zeros((8, 8))
+    for x in range(8):
+        for y in range(8):
+            values[x][y] = -100
     for x, y in possibleMoves:
         if isOnCorner(x,y):
-            values[x][y] = 1000
+            values[x][y] = 100
         else:
             dupeboard = copy.deepcopy(board)
             scores = [0]
             if isValidMove(dupeboard,tile, x, y):
                 score = len(isValidMove(dupeboard, tile, x, y))
-                values[x][y] = score
+                values[x][y] = 3 * score
             makeMove(dupeboard, tile, x, y)
             prophetpossibleMoves = getValidmoves(dupeboard, othertile)
-            for a, b in prophetpossibleMoves:
-                if isOnCorner(a, b):
-                    values[x][y] -= 800
-                    break
-                else:
-                    dupeboard1 = copy.deepcopy(dupeboard)
+            if not prophetpossibleMoves:
+                values[x][y] += 100
+            else:
+                for a, b in prophetpossibleMoves:
+                    if isOnCorner(a, b):
+                        values[x][y] -= 200
+                        break
+                    else:
+                        dupeboard1 = copy.deepcopy(dupeboard)
 
-                    if isValidMove(dupeboard1, othertile, a, b):
-                        score = len(isValidMove(dupeboard1, othertile, a, b))
-                        scores.append(score)
-            scores.sort(reverse=True)
-            values[x][y] -= 0.8 * scores[0]
+                        if isValidMove(dupeboard1, othertile, a, b):
+                            score = len(isValidMove(dupeboard1, othertile, a, b))
+                            scores.append(score)
+                scores.sort(reverse=True)
+                values[x][y] -= 2 * scores[0]
 
     bestvalue = 0
     bestmove = random.choice(possibleMoves)
@@ -798,6 +840,18 @@ def prophet(board, tile):
             bestvalue = values[x][y]
             bestmove = [x, y]
     return bestmove
+
+def mctsmoves(board, tile):
+    Board = nowboard()
+    Board.getBoardState(board)
+    if tile == BLACK_TILE:
+        Board.setTile(BLACK_TILE)
+    else:
+        Board.setTile(WHITE_TILE)
+    Board.availablemoves(board, tile)
+
+
+
 
 def checkForQuit():
     for event in pygame.event.get((pygame.QUIT, pygame.KEYUP)):
