@@ -807,12 +807,12 @@ def prophet(board, tile):
         for y in range(8):
             values[x][y] = -100
     for x, y in possibleMoves:
-        if isOnCorner(x,y):
-            values[x][y] = 100
+        if isOnCorner(x, y):
+            values[x][y] += 100
         else:
             dupeboard = copy.deepcopy(board)
             scores = [0]
-            if isValidMove(dupeboard,tile, x, y):
+            if isValidMove(dupeboard, tile, x, y):
                 score = len(isValidMove(dupeboard, tile, x, y))
                 values[x][y] = 3 * score
             makeMove(dupeboard, tile, x, y)
