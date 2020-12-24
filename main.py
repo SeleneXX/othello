@@ -15,8 +15,8 @@ RECOMMEND_TILE = 'RECOMMEND_TILE'   #推荐
 ANIMATIONSPEED = 30
 
 #棋盘边缘
-XMARGIN = int((WINDOWWID-(BOARDWID*SPACESIZE))/2)
-YMARGIN = int((WINDOWHEI - (BOARDHEI*SPACESIZE))/2)
+XMARGIN = int((WINDOWWID - (BOARDWID * SPACESIZE)) / 2)
+YMARGIN = int((WINDOWHEI - (BOARDHEI*SPACESIZE)) / 2)
 
 #定义需要的颜色
 WHITE = (255, 255, 255)
@@ -350,7 +350,7 @@ def runGame():
                 while time.time() < pauseUntil:
                     pygame.display.update()
 
-                x,y = getComputerMove(mainBoard, computerTile)
+                x,y = prophet(mainBoard, computerTile)
                 makeMove(mainBoard, computerTile, x, y, True)
                 if getValidmoves(mainBoard, playerTile) != []:
                     turn = player1     #回合结束，如果玩家能行动，则切换玩家回合
@@ -824,7 +824,7 @@ def prophet(board, tile):
             else:
                 for a, b in prophetpossibleMoves:
                     if isOnCorner(a, b):
-                        score = 25
+                        score = 50
                         scores.append(score)
                         break
                     else:
@@ -836,7 +836,7 @@ def prophet(board, tile):
                 scores.sort(reverse=True)
                 values[x][y] -= 7 * scores[0]
 
-    bestvalue = 0
+    bestvalue = -100
     bestmove = random.choice(possibleMoves)
     for x, y in possibleMoves:
         if values[x][y] >= bestvalue:
