@@ -53,7 +53,7 @@ class nowboard(object):
                     currentstate[0][x][y] = 1
                 elif board[1][x][y] == self.player2tile:
                     currentstate[1][x][y] = 1
-        currentstate[3][self.lastmove[0]][self.lastmove[1]]
+        currentstate[2][self.lastmove[0]][self.lastmove[1]]
         if len(self.states) % 2 == 0:
             currentstate[3][:, :] = 1.0  # indicate the colour to play
         return currentstate[:, ::-1, :]
@@ -802,27 +802,30 @@ def prophet(board, tile):
     else:
         othertile = BLACK_TILE
     possibleMoves = getValidmoves(board, tile)
+    random.shuffle(possibleMoves)
     values = np.zeros((8, 8))
     for x in range(8):
         for y in range(8):
             values[x][y] = -100
     for x, y in possibleMoves:
         if isOnCorner(x, y):
-            values[x][y] += 100
+            values[x][y] = 100
         else:
             dupeboard = copy.deepcopy(board)
             scores = [0]
             if isValidMove(dupeboard, tile, x, y):
                 score = len(isValidMove(dupeboard, tile, x, y))
-                values[x][y] = 3 * score
+                values[x][y] = 7 * score
             makeMove(dupeboard, tile, x, y)
             prophetpossibleMoves = getValidmoves(dupeboard, othertile)
+            random.shuffle(prophetpossibleMoves)
             if not prophetpossibleMoves:
-                values[x][y] += 100
+                values[x][y] = 100
             else:
                 for a, b in prophetpossibleMoves:
                     if isOnCorner(a, b):
-                        values[x][y] -= 200
+                        score = 25
+                        scores.append(score)
                         break
                     else:
                         dupeboard1 = copy.deepcopy(dupeboard)
@@ -831,7 +834,7 @@ def prophet(board, tile):
                             score = len(isValidMove(dupeboard1, othertile, a, b))
                             scores.append(score)
                 scores.sort(reverse=True)
-                values[x][y] -= 2 * scores[0]
+                values[x][y] -= 7 * scores[0]
 
     bestvalue = 0
     bestmove = random.choice(possibleMoves)
