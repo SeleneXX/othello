@@ -34,44 +34,6 @@ TEXTCOLOR = WHITE
 HINTCOLOR = BROWN
 RECOMMENDCOLOR = RED
 
-class nowboard(object):
-    def __init__(self):
-        self.width = BOARDWID
-        self.height = BOARDHEI
-        self.state = {}
-        self.available = []
-        self.players = [1, 2]  # player1 and player2
-        self.player1tile = BLACK_TILE
-        self.player2tile = WHITE_TILE
-        self.lastmove = []
-
-    def getBoardState(self, board):
-        currentstate = np.zeros((4, self.width, self.height))
-        for x in range(self.width):
-            for y in range(self.height):
-                if board[x][y] == self.tile:
-                    currentstate[0][x][y] = 1
-                elif board[1][x][y] == self.player2tile:
-                    currentstate[1][x][y] = 1
-        currentstate[2][self.lastmove[0]][self.lastmove[1]]
-        if len(self.states) % 2 == 0:
-            currentstate[3][:, :] = 1.0  # indicate the colour to play
-        return currentstate[:, ::-1, :]
-
-    def availablemoves(self, board, tile):
-        self.available = getValidmoves(board, tile)
-
-    def setTile(self, tile):
-        self.tile = tile
-
-    def tilechange(self):
-        if self.tile == BLACK_TILE:
-            self.setTile(WHITE_TILE)
-        elif self.tile == WHITE_TILE:
-            self.setTile(BLACK_TILE)
-
-
-
 
 def main():
     global MAINCLOCK, DISPLAYSURF, FONT, BIGFONT, BGIMAGE, ORIGINBGIMAGE
@@ -843,16 +805,6 @@ def prophet(board, tile):
             bestvalue = values[x][y]
             bestmove = [x, y]
     return bestmove
-
-def mctsmoves(board, tile):
-    Board = nowboard()
-    Board.getBoardState(board)
-    if tile == BLACK_TILE:
-        Board.setTile(BLACK_TILE)
-    else:
-        Board.setTile(WHITE_TILE)
-    Board.availablemoves(board, tile)
-
 
 
 
