@@ -41,14 +41,16 @@ class Board(object):
     def __init__(self):
         self.width = BOARDWID
         self.height = BOARDHEI
-        self.state = {}
+        self.state= []
         self.available = []
         self.tile = {}
         self.boardstate = []
         self.players = [1, 2]
         self.current_player = 1
+        self.winner = -1
 
     def init_board(self, start_player = 0, start_tile = BLACK_TILE):
+        self.init_state()
         if start_tile == BLACK_TILE:
             other_tile = WHITE_TILE
         else:
@@ -59,9 +61,9 @@ class Board(object):
         elif start_player == 1:
             follow_player = 0
         self.tile = {self.current_player: start_tile, self.players[follow_player]: other_tile}
-        self.states = {}
+        self.states = []
         self.last_move = -1
-
+        self.winner = -1
         for x in range(self.width):
             for y in range(self.height):
                 self.boardstate[x][y] = EMPTY_SPACE
@@ -134,6 +136,13 @@ class Board(object):
                     self.available.append((x, y))
         return self.available
 
+    def get_move_list(self, availables):
+        possible_move_list = []
+        print(availables)
+        for x in availables:
+            possible_move_list.append(self.location_to_move(x[0], x[1]))
+        return list(set(possible_move_list))
+
     def getScoreOfBoard(self, boardstate = 0):
         if boardstate == 0:
             boardstate = self.boardstate
@@ -150,6 +159,16 @@ class Board(object):
     def get_current_player(self):
         return self.current_player
 
+    def get_opponent_player(self):
+        return 2 if self.current_player == 1 else 1
+
+    def move_to_location(self, move: int) -> (int, int):
+        x = move // self.width
+        y = move % self.width
+        return x, y
+
+    def location_to_move(self, x: int, y: int) -> int:
+        return x * self.width + y
 
     def makeMove(self, board, tile, xstart, ystart):
         # 点击和反转棋子
@@ -166,7 +185,7 @@ class Board(object):
         for x, y in tilesToFlip:
             board[x][y] = tile
 
-        self.states[move] = self.current_player
+        self.states.append((xstart, ystart))
         self.current_player = (
             self.players[0] if self.current_player == self.players[1]
             else self.players[1]
@@ -186,28 +205,25 @@ class Board(object):
                     currentstate[0][x][y] = 1
                 elif boardstate[x][y] == self.tile[2]:
                     currentstate[1][x][y] = 1
-        currentstate[2][self.lastmove[0]][self.lastmove[1]] = 1
-        if len(self.states) % 2 == 0:
+        if len(self.states) > 0:
+            x, y = self.states[len(self.states) - 1]
+            currentstate[2][x][y] = 1.0
+        if self.get_current_player == 1:
             currentstate[3][:, :] = 1.0  # indicate the colour to play
         return currentstate[:, ::-1, :]
 
     def has_a_winner(self):
-        count = 0
-        for x in range(self.width):
-            for y in range(self.height):
-                if self.boardstate[x][y] == EMPTY_SPACE:
-                    count += 1
-        if count == 0:
-            player1score = self.getScoreOfBoard()[self.tile[1]]
-            player2score = self.getScoreOfBoard()[self.tile[2]]
-            if player1score > player2score:
-                player = 1
-            elif player1score < player2score:
-                player = 2
-            elif player1score == player2score:
-                player = 0
-            return False, player
-        return False, -1
+        if len(self.getValidmoves(self.boardstate, self.tile[self.get_current_player()])):
+            return -1
+        else:
+            if len(self.getValidmoves(self.boardstate, self.tile[self.get_opponent_player()])):
+                return -1
+            else:
+                x = self.getScoreOfBoard(self.boardstate)[self.tile[1]]
+                y = self.getScoreOfBoard(self.boardstate)[self.tile[2]]
+                self.winner = 1 if x > y else 2 if x < y else 0
+                return self.winner
+
 
     def getNewBoard(self, start_player, start_tile):
         # 新建棋盘，棋盘由一个二维列表保存
@@ -306,8 +322,8 @@ class Board(object):
         return bestmove
 
     def  game_end(self):
-        win, winner = self.has_a_winner()
-        if win:
+        winner = self.has_a_winner()
+        if winner != -1:
             return True, winner
         elif winner == 0:
             return True, -1
@@ -506,7 +522,10 @@ class Game(object):
             if event.type == pygame.QUIT or (event.type == pygame.KEYUP and event.key == pygame.K_ESCAPE):
                 pygame.quit()
                 sys.exit()
-
+    def mctsmove(self):
+        mctsplayer = mcts_pure.MCTSPlayer(c_puct=5, n_playout=10)
+        move = mctsplayer.get_action(self.board)
+        return self.board.move_to_location(move)
 
 
     def runGame(self):
@@ -872,7 +891,7 @@ class Game(object):
                     while time.time() < pauseUntil:
                         pygame.display.update()
 
-                    x, y = self.mcts()
+                    x, y = self.mctsmove()
                     a = self.board.makeMove(self.board.boardstate, computer1Tile, x, y)
                     if a != False:
                         tilestoflip, tile, x, y = a
@@ -951,44 +970,25 @@ class Game(object):
                 pygame.display.update()
                 MAINCLOCK.tick(FPS)
 
-    def mcts(self):
-        mctsplayer = mcts_pure.MCTSPlayer()
-        move, move_probs = mctsplayer.get_action(self.board)
-        return move
-
-
-
-    def self_play(self, player, is_shown = 0, temp = 1e-3):
+    def start_self_play(self, player, temp = 1e-3):
         self.board.init_board()
-        p1, p2 = self.board.players
-        states, mcts_probs, current_players = [], [], []
-        while True:
-            move, move_probs = player.get_action(self.board,
-                                                 temp=temp,
-                                                 return_prob=1)
-            # store the data
-            states.append(self.board.current_state())
+        states, mcts_probs, current_player = [], [], []
+        while self.board.winner == -1:
+            move, move_probs = player.get_action(self.board, temp = temp)
+            states.append(self.board.getBoardState())
             mcts_probs.append(move_probs)
-            current_players.append(self.board.current_player)
-            # perform a move
-            self.board.do_move(move)
-            if is_shown:
-                self.graphic(self.board, p1, p2)
-            end, winner = self.board.game_end()
-            if end:
-                # winner from the perspective of the current player of each state
-                winners_z = np.zeros(len(current_players))
+            current_player.append(self.board.get_current_player())
+
+            x, y = self.board.move_to_location(move)
+            self.board.makeMove(self.board.boardstate, self.tile[self.board.get_current_player()], x, y)
+            winner = self.board.has_a_winner()
+            if winner != -1:
+                winners_z = np.zeros(len(current_player))
                 if winner != -1:
-                    winners_z[np.array(current_players) == winner] = 1.0
-                    winners_z[np.array(current_players) != winner] = -1.0
-                # reset MCTS root node
+                    winners_z[np.array(current_player) == winner] = 1.0
+                    winners_z[np.array(current_player) != winner] = -1.0
                 player.reset_player()
-                if is_shown:
-                    if winner != -1:
-                        print("Game end. Winner is player:", winner)
-                    else:
-                        print("Game end. Tie")
-                return winner, zip(states, mcts_probs, winners_z)
+                return zip(states, mcts_probs, winners_z)
 
 
 pygame.init()

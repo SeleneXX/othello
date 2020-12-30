@@ -6,16 +6,18 @@ from operator import itemgetter
 def rollout_policy_fn(board):
     """a coarse, fast version of policy_fn used in the rollout phase."""
     # rollout randomly
-    action_probs = np.random.rand(len(board.available))
-    return zip(board.available, action_probs)
+    action_probs = np.random.rand(len(board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player]))))
+    print(action_probs, board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player])))
+    return zip(board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player])), action_probs), 0
+
 
 
 def policy_value_fn(board):
     """a function that takes in a state and outputs a list of (action, probability)
     tuples and a score for the state"""
     # return uniform probabilities and 0 score for pure MCTS
-    action_probs = np.ones(len(board.available))/len(board.available)
-    return zip(board.available, action_probs), 0
+    action_probs = np.ones(len(board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player]))))/len(board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player])))
+    return zip(board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.current_player])), action_probs), 0
 
 
 class TreeNode(object):
@@ -116,7 +118,8 @@ class MCTS(object):
                 break
             # Greedily select next move.
             action, node = node.select(self._c_puct)
-            state.makeMove(state.boardstate, state.tile[state.current_player], action[0], action[1])
+            x, y = state.move_to_location(action)
+            state.makeMove(state.boardstate, state.tile[state.current_player], x, y)
 
         action_probs, _ = self._policy(state)
         # Check for end of game
@@ -139,9 +142,10 @@ class MCTS(object):
             end, winner = state.game_end()
             if end:
                 break
-            action_probs = rollout_policy_fn(state)
+            action_probs, _ = rollout_policy_fn(state)
             max_action = max(action_probs, key=itemgetter(1))[0]
-            state.makeMove(state.boardstate, tile, max_action[0], max_action[1])
+            x, y = state.move_to_location(max_action)
+            state.makeMove(state.boardstate, tile, x, y)
         else:
             # If no break from the loop, issue a warning.
             print("WARNING: rollout reached move limit")
@@ -187,7 +191,7 @@ class MCTSPlayer(object):
         self.mcts.update_with_move(-1)
 
     def get_action(self, board):
-        sensible_moves = board.available
+        sensible_moves = board.get_move_list(board.getValidmoves(board.boardstate, board.tile[board.get_current_player()]))
         if len(sensible_moves) > 0:
             move = self.mcts.get_move(board)
             self.mcts.update_with_move(-1)
