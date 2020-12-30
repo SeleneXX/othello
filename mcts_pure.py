@@ -6,16 +6,16 @@ from operator import itemgetter
 def rollout_policy_fn(board):
     """a coarse, fast version of policy_fn used in the rollout phase."""
     # rollout randomly
-    action_probs = np.random.rand(len(board.availables))
-    return zip(board.availables, action_probs)
+    action_probs = np.random.rand(len(board.available))
+    return zip(board.available, action_probs)
 
 
 def policy_value_fn(board):
     """a function that takes in a state and outputs a list of (action, probability)
     tuples and a score for the state"""
     # return uniform probabilities and 0 score for pure MCTS
-    action_probs = np.ones(len(board.availables))/len(board.availables)
-    return zip(board.availables, action_probs), 0
+    action_probs = np.ones(len(board.available))/len(board.available)
+    return zip(board.available, action_probs), 0
 
 
 class TreeNode(object):
@@ -116,7 +116,7 @@ class MCTS(object):
                 break
             # Greedily select next move.
             action, node = node.select(self._c_puct)
-            state.do_move(action)
+            state.makeMove(state.boardstate, state.tile[state.current_player], action[0], action[1])
 
         action_probs, _ = self._policy(state)
         # Check for end of game
@@ -134,13 +134,14 @@ class MCTS(object):
         and 0 if it is a tie.
         """
         player = state.get_current_player()
+        tile = state.tile[player]
         for i in range(limit):
             end, winner = state.game_end()
             if end:
                 break
             action_probs = rollout_policy_fn(state)
             max_action = max(action_probs, key=itemgetter(1))[0]
-            state.do_move(max_action)
+            state.makeMove(state.boardstate, tile, max_action[0], max_action[1])
         else:
             # If no break from the loop, issue a warning.
             print("WARNING: rollout reached move limit")
@@ -175,7 +176,7 @@ class MCTS(object):
 
 
 class MCTSPlayer(object):
-    """AI player based on MCTS"""为
+    """AI player based on MCTS"""
     def __init__(self, c_puct=5, n_playout=2000):
         self.mcts = MCTS(policy_value_fn, c_puct, n_playout)
 
@@ -186,7 +187,7 @@ class MCTSPlayer(object):
         self.mcts.update_with_move(-1)
 
     def get_action(self, board):
-        sensible_moves = board.availables
+        sensible_moves = board.available
         if len(sensible_moves) > 0:
             move = self.mcts.get_move(board)
             self.mcts.update_with_move(-1)

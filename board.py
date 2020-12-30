@@ -1,5 +1,6 @@
 import random, sys, pygame, time, copy
 import numpy as np
+import  mcts_pure
 #基础设定，窗口大小，游戏帧数
 FPS = 10
 WINDOWWID = 960
@@ -43,23 +44,24 @@ class Board(object):
         self.state = {}
         self.available = []
         self.tile = {}
-        self.boardstate = np.zeros((self.width, self.height))
+        self.boardstate = []
         self.players = [1, 2]
+        self.current_player = 1
 
     def init_board(self, start_player = 0, start_tile = BLACK_TILE):
         if start_tile == BLACK_TILE:
             other_tile = WHITE_TILE
         else:
             other_tile = BLACK_TILE
-        self.currentplayer = self.players[start_player]
+        self.current_player = self.players[start_player]
         if start_player == 0:
             follow_player = 1
         elif start_player == 1:
             follow_player = 0
-        self.tile = {self.currentplayer: start_tile, self.player[follow_player]: other_tile}
-        self.availables = list(range(self.width * self.height))
+        self.tile = {self.current_player: start_tile, self.players[follow_player]: other_tile}
         self.states = {}
         self.last_move = -1
+
         for x in range(self.width):
             for y in range(self.height):
                 self.boardstate[x][y] = EMPTY_SPACE
@@ -68,6 +70,11 @@ class Board(object):
         self.boardstate[3][4] = BLACK_TILE
         self.boardstate[4][3] = BLACK_TILE
 
+
+    def init_state(self):
+        self.boardstate = []
+        for i in range(BOARDWID):
+            self.boardstate.append([EMPTY_SPACE] * 8)
 
     def isValidMove(self, boardstate, tile, xstart, ystart):
         # 判断玩家行动是否合法，若不合法返回错误，若合法返回要翻转的棋子列表
@@ -107,13 +114,16 @@ class Board(object):
                         tilesToFlip.append(([x, y]))
 
         boardstate[xstart][ystart] = EMPTY_SPACE
-        self.boardstate = boardstate
         if len(tilesToFlip) == 0:
             return False
         return tilesToFlip
 
     def isOnBoard(self, x, y):
         return x >= 0 and x < self.width and y >= 0 and y < self.height
+
+    def isOnCorner(self, x, y):
+        return (x == 0 and y == 0) or (x == BOARDWID - 1 and y == 0) or (x == 0 and y == BOARDHEI - 1) or (
+                    x == BOARDWID - 1 and y == BOARDHEI - 1)
 
     def getValidmoves(self, boardstate, tile):
         # 返回所有可以走的位置
@@ -124,45 +134,57 @@ class Board(object):
                     self.available.append((x, y))
         return self.available
 
-    def getScoreOfBoard(self):
+    def getScoreOfBoard(self, boardstate = 0):
+        if boardstate == 0:
+            boardstate = self.boardstate
         White_score = 0
         Black_score = 0
         for x in range(self.width):
             for y in range(self.height):
-                if self.boardstate[x][y] == WHITE_TILE:
+                if boardstate[x][y] == WHITE_TILE:
                     White_score += 1
-                if self.boardstate[x][y] == BLACK_TILE:
+                if boardstate[x][y] == BLACK_TILE:
                     Black_score += 1
         return {WHITE_TILE: White_score, BLACK_TILE: Black_score}
 
+    def get_current_player(self):
+        return self.current_player
 
-    def makeMove(self, boardstate, tile, xstart, ystart):
+
+    def makeMove(self, board, tile, xstart, ystart):
         # 点击和反转棋子
         move = (xstart, ystart)
-        self.states[move] = self.current_player
+        if tile == BLACK_TILE:
+            othertile = WHITE_TILE
+        else:
+            othertile =BLACK_TILE
         self.lastmove = move
-        tilesToFlip = self.isValidMove(boardstate, tile, xstart, ystart)
+        tilesToFlip = self.isValidMove(board, tile, xstart, ystart)
         if tilesToFlip == False:
-            return False
-
-        boardstate[xstart][ystart] = tile
-
+            return 0
+        board[xstart][ystart] = tile
         for x, y in tilesToFlip:
-            boardstate[x][y] = tile
+            board[x][y] = tile
+
+        self.states[move] = self.current_player
         self.current_player = (
             self.players[0] if self.current_player == self.players[1]
             else self.players[1]
         )
-        self.boardstate = boardstate
+
+        print(tilesToFlip, tile, xstart, ystart)
+        self.available = self.getValidmoves(self.boardstate, othertile)
         return tilesToFlip, tile, xstart, ystart
 
-    def getBoardState(self):
+    def getBoardState(self, boardstate = 0):
+        if boardstate == 0:
+            boardstate = self.boardstate
         currentstate = np.zeros((4, self.width, self.height))
         for x in range(self.width):
             for y in range(self.height):
-                if self.boardstate[x][y] == self.player1tile:
+                if boardstate[x][y] == self.tile[1]:
                     currentstate[0][x][y] = 1
-                elif self.boardstate[x][y] == self.player2tile:
+                elif boardstate[x][y] == self.tile[2]:
                     currentstate[1][x][y] = 1
         currentstate[2][self.lastmove[0]][self.lastmove[1]] = 1
         if len(self.states) % 2 == 0:
@@ -176,8 +198,8 @@ class Board(object):
                 if self.boardstate[x][y] == EMPTY_SPACE:
                     count += 1
         if count == 0:
-            player1score = self.getScoreOfBoard()[self.player1tile]
-            player2score = self.getScoreOfBoard()[self.player2tile]
+            player1score = self.getScoreOfBoard()[self.tile[1]]
+            player2score = self.getScoreOfBoard()[self.tile[2]]
             if player1score > player2score:
                 player = 1
             elif player1score < player2score:
@@ -201,7 +223,7 @@ class Board(object):
 
     def getBoardWithRecommendMOves(self, boardstate, tile):
         dupeBoard = copy.deepcopy(boardstate)
-        recommendMoves = self.getComputerMove(dupeBoard, tile)
+        recommendMoves = self.prophet(dupeBoard, tile)
         dupeBoard[recommendMoves[0]][recommendMoves[1]] = RECOMMEND_TILE
         return dupeBoard
 
@@ -214,9 +236,9 @@ class Board(object):
         dupeBoard[recommendMoves[0]][recommendMoves[1]] = RECOMMEND_TILE
         return dupeBoard
 
-    def getComputerMove(self, computerTile):
+    def getComputerMove(self, boardstate, computerTile):
         # 电脑玩家算法
-        possibleMoves = self.getValidmoves(self.boardstate, computerTile)
+        possibleMoves = self.getValidmoves(boardstate, computerTile)
         random.shuffle(possibleMoves)
 
         for x, y in possibleMoves:
@@ -227,7 +249,7 @@ class Board(object):
 
         # 复制一个新的棋盘，模拟所有可以走的位置，寻找分最高的位置
         for x, y in possibleMoves:
-            dupeBoard = copy.deepcopy(self.boardstate)
+            dupeBoard = copy.deepcopy(boardstate)
             self.makeMove(dupeBoard, computerTile, x, y)
             score = self.getScoreOfBoard(dupeBoard)[computerTile]
             if score > bestScore:
@@ -235,12 +257,12 @@ class Board(object):
                 bestScore = score
         return bestMove
 
-    def prophet(self, tile):
+    def prophet(self, boardstate, tile):
         if tile == BLACK_TILE:
             othertile = WHITE_TILE
         else:
             othertile = BLACK_TILE
-        possibleMoves = self.getValidmoves(self.boadboard, tile)
+        possibleMoves = self.getValidmoves(boardstate, tile)
         random.shuffle(possibleMoves)
         values = np.zeros((8, 8))
         for x in range(8):
@@ -250,7 +272,7 @@ class Board(object):
             if self.isOnCorner(x, y):
                 values[x][y] = 100
             else:
-                dupeboard = copy.deepcopy(self.boardstate)
+                dupeboard = copy.deepcopy(boardstate)
                 scores = [0]
                 if self.isValidMove(dupeboard, tile, x, y):
                     score = len(self.isValidMove(dupeboard, tile, x, y))
@@ -395,7 +417,7 @@ class Game(object):
         return None
 
     def drawInfo(self, board, player1, player2, player1Tile, player2Tile, turn):  # 在屏幕底部画出得分和谁的回合
-        scores = board.getScoreOfBoard()
+        scores = self.board.getScoreOfBoard()
         if player1Tile == WHITE_TILE:
             p1 = 'White'
             p2 = 'Black'
@@ -475,8 +497,9 @@ class Game(object):
             MAINCLOCK.tick(FPS)
             return mode
 
-    def makemove (self, tilesToFlip, tile, xstart, ystart):
-        self.animateTileChange(tilesToFlip, tile, (xstart, ystart))
+    def makeMove(self, tilesToFlip, tile, xstart, ystart):
+        # 点击和反转棋子
+            self.animateTileChange(tilesToFlip, tile, (xstart, ystart))
 
     def checkForQuit(self):
         for event in pygame.event.get((pygame.QUIT, pygame.KEYUP)):
@@ -491,6 +514,7 @@ class Game(object):
         showRecommend = False
         mode = self.enterGameMode()
         if mode == 'PVP':
+            self.board.init_state()
             player1 = 0
             player2 = 1
             self.drawBoard(self.board.boardstate)
@@ -557,8 +581,11 @@ class Game(object):
                         MAINCLOCK.tick(FPS)
                         pygame.display.update()
 
-                    tilesToFlip, Tile1, xstart, ystart = self.board.makeMove(self.board.boardstate, player1Tile, movexy[0], movexy[1])
-                    self.makemove(tilesToFlip, Tile1, xstart, ystart)
+                    a = self.board.makeMove(self.board.boardstate, player1Tile, movexy[0], movexy[1])
+                    if a != False:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
+
                     self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, player2Tile) != []:
                         turn = player2  # 回合结束，如果玩家2能行动，则切换电脑玩家回合
@@ -608,8 +635,10 @@ class Game(object):
 
                         MAINCLOCK.tick(FPS)
                         pygame.display.update()
-                    tilesToFlip, Tile2, xstart, ystart = self.board.makeMove(self.board.boardstate, player2Tile, movexy[0], movexy[1])
-                    self.makemove(tilesToFlip, Tile2, xstart, ystart)
+                    a = self.board.makeMove(self.board.boardstate, player2Tile, movexy[0], movexy[1])
+                    if a != False:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
                     self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, player1Tile) != []:
                         turn = player1  # 回合结束，如果玩家1能行动，则切换玩家1回合
@@ -656,7 +685,9 @@ class Game(object):
                 DISPLAYSURF.blit(noSurf, noRect)
                 pygame.display.update()
                 MAINCLOCK.tick(FPS)
+
         elif mode == 'PVE':
+            self.board.init_state()
             player1 = 0
             player2 = 1
             self.drawBoard(self.board.boardstate)
@@ -724,8 +755,11 @@ class Game(object):
                         MAINCLOCK.tick(FPS)
                         pygame.display.update()
 
-                    tilesToFlip, Tile1, xstart, ystart = self.board.makeMove(self.board.boardstate, playerTile, movexy[0], movexy[1])
-                    self.makemove(tilesToFlip, Tile1, xstart, ystart)
+                    a = self.board.makeMove(self.board.boardstate, playerTile, movexy[0], movexy[1])
+                    if a != False:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
+
                     self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, computerTile) != []:
                         turn = player2  # 回合结束，如果电脑玩家能行动，则切换电脑玩家回合
@@ -752,10 +786,11 @@ class Game(object):
                     while time.time() < pauseUntil:
                         pygame.display.update()
 
-                    x, y = self.board.prophet(computerTile)
-                    tilesToFlip, Tile1, xstart, ystart = self.board.makeMove(self.board.boardstate, playerTile,
-                                                                             x, y)
-                    self.makemove(tilesToFlip, Tile1, xstart, ystart)
+                    x, y = self.board.prophet(self.board.boardstate, computerTile)
+                    a = self.board.makeMove(self.board.boardstate, computerTile, x, y)
+                    if a != 0:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
                     self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, playerTile) != []:
                         turn = player1  # 回合结束，如果玩家能行动，则切换玩家回合
@@ -803,7 +838,7 @@ class Game(object):
                 pygame.display.update()
                 MAINCLOCK.tick(FPS)
         elif mode == 'EVE':
-
+            self.board.init_state()
             player1 = 0
             player2 = 1
             self.drawBoard(self.board.boardstate)
@@ -822,7 +857,7 @@ class Game(object):
                 if turn == player1:
                     # 电脑玩家1回合
                     if self.board.getValidmoves(self.board.boardstate, computer1Tile) == []:
-                        break  # 如果是电脑2回合但其不能动，游戏结束
+                        break  # 如果是电脑1回合但其不能动，游戏结束
                     for event in pygame.event.get():
                         if event.type == pygame.MOUSEBUTTONUP:
                             mouseX, mouseY = event.pos
@@ -837,14 +872,18 @@ class Game(object):
                     while time.time() < pauseUntil:
                         pygame.display.update()
 
-                    x, y = self.board.getComputerMove(computer1Tile)
-                    self.board.makeMove(self.board.boardstate, computer1Tile, x, y, True)
+                    x, y = self.mcts()
+                    a = self.board.makeMove(self.board.boardstate, computer1Tile, x, y)
+                    if a != False:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
+                    self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, computer2Tile) != []:
-                        turn = player2  # 回合结束，如果电脑玩家1能行动，则切换电脑玩家1回合
+                        turn = player2  # 回合结束，如果电脑玩家2能行动，则切换电脑玩家2回合
 
                 elif turn == player2:
                     # 电脑玩家2回合
-                    if self.getValidmoves(self.board.boardstate, computer2Tile) == []:
+                    if self.board.getValidmoves(self.board.boardstate, computer2Tile) == []:
                         break  # 如果是电脑2回合但其不能动，游戏结束
 
                     for event in pygame.event.get():
@@ -860,13 +899,17 @@ class Game(object):
                     while time.time() < pauseUntil:
                         pygame.display.update()
 
-                    x, y = self.board.prophet(computer2Tile)
-                    self.board.makeMove(self.board.boardstate, computer2Tile, x, y, True)
-                    if self.getValidmoves(self.board.boardstate, computer1Tile) != []:
+                    x, y = self.board.prophet(self.board.boardstate, computer2Tile)
+                    a = self.board.makeMove(self.board.boardstate, computer2Tile, x, y)
+                    if a != 0:
+                        tilestoflip, tile, x, y = a
+                        self.makeMove(tilestoflip, tile, x, y)
+                    self.board.getBoardState()
+                    if self.board.getValidmoves(self.board.boardstate, computer1Tile) != []:
                         turn = player1  # 回合结束，如果电脑玩家1能行动，则切换电脑玩家1回合
 
             self.drawBoard(self.board.boardstate)
-            scores = self.getScoreOfBoard()  # 显示分数
+            scores = self.board.getScoreOfBoard()  # 显示分数
 
             if scores[computer1Tile] > scores[computer2Tile]:  # 判断游戏结果
                 text = 'Computer1 win!'
@@ -907,7 +950,49 @@ class Game(object):
                 DISPLAYSURF.blit(noSurf, noRect)
                 pygame.display.update()
                 MAINCLOCK.tick(FPS)
+
+    def mcts(self):
+        mctsplayer = mcts_pure.MCTSPlayer()
+        move, move_probs = mctsplayer.get_action(self.board)
+        return move
+
+
+
+    def self_play(self, player, is_shown = 0, temp = 1e-3):
+        self.board.init_board()
+        p1, p2 = self.board.players
+        states, mcts_probs, current_players = [], [], []
+        while True:
+            move, move_probs = player.get_action(self.board,
+                                                 temp=temp,
+                                                 return_prob=1)
+            # store the data
+            states.append(self.board.current_state())
+            mcts_probs.append(move_probs)
+            current_players.append(self.board.current_player)
+            # perform a move
+            self.board.do_move(move)
+            if is_shown:
+                self.graphic(self.board, p1, p2)
+            end, winner = self.board.game_end()
+            if end:
+                # winner from the perspective of the current player of each state
+                winners_z = np.zeros(len(current_players))
+                if winner != -1:
+                    winners_z[np.array(current_players) == winner] = 1.0
+                    winners_z[np.array(current_players) != winner] = -1.0
+                # reset MCTS root node
+                player.reset_player()
+                if is_shown:
+                    if winner != -1:
+                        print("Game end. Winner is player:", winner)
+                    else:
+                        print("Game end. Tie")
+                return winner, zip(states, mcts_probs, winners_z)
+
+
 pygame.init()
+global MAINCLOCK, DISPLAYSURF, FONT, BIGFONT, BGIMAGE, ORIGINBGIMAGE
 MAINCLOCK = pygame.time.Clock()
 DISPLAYSURF = pygame.display.set_mode((WINDOWWID, WINDOWHEI))           #游戏窗口
 pygame.display.set_caption('丁大佬牛逼')
@@ -923,9 +1008,5 @@ BGIMAGE.blit(boardImage, boardImageRect)        #绘制棋盘
 ORIGINBGIMAGE = pygame.image.load('bgimage.png')
 ORIGINBGIMAGE = pygame.transform.smoothscale(ORIGINBGIMAGE, (WINDOWWID, WINDOWHEI))
 
-
-board = Board()
-game = Game(board)
-game.runGame()
 
 
