@@ -42,7 +42,7 @@ class MCTS:
                 # Greedily select next move.
             action, node = node.select(self._c_puct)
             x, y = state.move_to_location(action)
-            state.add_move(x, y)
+            state.makeMove(state.boardstate, state.tile[state.get_current_player()], x, y)
 
         # Evaluate the leaf using a network which outputs a list of (action, probabilities)
         # tuples p and also a score v in [-1, 1] for the current player.

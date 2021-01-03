@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 from board import Board, Game
-from mcts_alphaZero import MCTSPlayer
+from alphago_zero_mcts import MCTSPlayer
 from mcts_pure import MCTSPlayer as MCTS_Pure
 from deepmind import PolicyValueNet
 
