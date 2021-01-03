@@ -138,7 +138,6 @@ class Board(object):
 
     def get_move_list(self, availables):
         possible_move_list = []
-        print(availables)
         for x in availables:
             possible_move_list.append(self.location_to_move(x[0], x[1]))
         return list(set(possible_move_list))
@@ -168,7 +167,7 @@ class Board(object):
         return x, y
 
     def location_to_move(self, x: int, y: int) -> int:
-        return x * self.width + y
+        return ((x * self.width) + y)
 
     def makeMove(self, board, tile, xstart, ystart):
         # 点击和反转棋子
@@ -191,7 +190,6 @@ class Board(object):
             else self.players[1]
         )
 
-        print(tilesToFlip, tile, xstart, ystart)
         self.available = self.getValidmoves(self.boardstate, othertile)
         return tilesToFlip, tile, xstart, ystart
 
@@ -522,10 +520,16 @@ class Game(object):
             if event.type == pygame.QUIT or (event.type == pygame.KEYUP and event.key == pygame.K_ESCAPE):
                 pygame.quit()
                 sys.exit()
-    def mctsmove(self):
-        mctsplayer = mcts_pure.MCTSPlayer(c_puct=5, n_playout=10)
-        move = mctsplayer.get_action(self.board)
-        return self.board.move_to_location(move)
+    def mctsmove(self, n_play_out):
+        print(self.board.tile[self.board.get_current_player()])
+        print(self.board.getValidmoves(self.board.boardstate, self.board.tile[self.board.get_current_player()]))
+        if len(self.board.getValidmoves(self.board.boardstate, self.board.tile[self.board.get_current_player()])) > 1:
+            mctsplayer = mcts_pure.MCTSPlayer(c_puct=5, n_playout=n_play_out)
+
+            move = mctsplayer.get_action(self.board)
+            return self.board.move_to_location(move)
+        else:
+            return self.board.getValidmoves(self.board.boardstate, self.board.tile[self.board.get_current_player()])[0]
 
 
     def runGame(self):
@@ -726,10 +730,11 @@ class Game(object):
             recommendSurf = FONT.render('Recommend', True, TEXTCOLOR, TEXTBGCOLOR2)
             recommendRect = recommendSurf.get_rect()
             recommendRect.topright = (WINDOWWID - 8, 70)
-
+            round = 0
             while True:  # 主循环
                 if turn == player1:
                     # 玩家回合
+                    self.board.current_player = 1
                     if self.board.getValidmoves(self.board.boardstate, playerTile) == []:
                         break  # 如果是玩家回合但其不能移动，游戏结束
                     movexy = None
@@ -785,6 +790,7 @@ class Game(object):
 
                 elif turn == player2:
                     # 电脑玩家回合
+                    self.board.current_player = 1
                     if self.board.getValidmoves(self.board.boardstate, computerTile) == []:
                         break  # 如果是电脑回合但其不能动，游戏结束
 
@@ -793,19 +799,32 @@ class Game(object):
                             mouseX, mouseY = event.pos
                             if newgameRect.collidepoint((mouseX, mouseY)):
                                 return True  # 新游戏
-
+                    self.board.current_player = 2
                     self.drawBoard(self.board.boardstate)
                     self.drawInfo(self.board.boardstate, player1, player2, playerTile, computerTile, turn)
 
                     DISPLAYSURF.blit(newGameSurf, newgameRect)  # 画三个按钮
                     DISPLAYSURF.blit(hintsSurf, hintsRect)
                     DISPLAYSURF.blit(recommendSurf, recommendRect)
-
                     pauseUntil = time.time() + random.randint(5, 15) * 0.1  # 模拟电脑玩家思考时间，长度随机
                     while time.time() < pauseUntil:
                         pygame.display.update()
 
-                    x, y = self.board.prophet(self.board.boardstate, computerTile)
+                    if round <= 2:
+                        n_play_out = 100
+                    elif round <= 6:
+                        n_play_out = 400
+                    elif round <= 10:
+                        n_play_out = 800
+                    elif round <= 15:
+                        n_play_out = 1100
+                    elif round <= 20:
+                        n_play_out = 1400
+                    elif round <= 25:
+                        n_play_out = 1200
+                    else:
+                        n_play_out = 1000
+                    x, y = self.mctsmove(n_play_out)
                     a = self.board.makeMove(self.board.boardstate, computerTile, x, y)
                     if a != 0:
                         tilestoflip, tile, x, y = a
@@ -813,7 +832,7 @@ class Game(object):
                     self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, playerTile) != []:
                         turn = player1  # 回合结束，如果玩家能行动，则切换玩家回合
-
+                    round += 1
             self.drawBoard(self.board.boardstate)
             scores = self.board.getScoreOfBoard()  # 显示分数
 
@@ -857,6 +876,7 @@ class Game(object):
                 pygame.display.update()
                 MAINCLOCK.tick(FPS)
         elif mode == 'EVE':
+            round = 0
             self.board.init_state()
             player1 = 0
             player2 = 1
@@ -886,20 +906,34 @@ class Game(object):
                     self.drawBoard(self.board.boardstate)
                     self.drawInfo(self.board.boardstate, player1, player2, computer1Tile, computer2Tile, turn)
                     DISPLAYSURF.blit(newGameSurf, newgameRect)
-
                     pauseUntil = time.time() + random.randint(5, 15) * 0.1  # 模拟电脑玩家思考时间，长度随机
                     while time.time() < pauseUntil:
                         pygame.display.update()
-
-                    x, y = self.mctsmove()
+                    print(computer1Tile)
+                    self.board.current_player = 1
+                    print(self.board.getValidmoves(self.board.boardstate, computer1Tile))
+                    if round <= 1:
+                        n_play_out = 100
+                    elif round <= 5:
+                        n_play_out = 600
+                    elif round <= 10:
+                        n_play_out = 1500
+                    elif round <= 15:
+                        n_play_out = 2000
+                    elif round <= 20:
+                        n_play_out = 2500
+                    elif round <= 25:
+                        n_play_out = 2000
+                    else:
+                        n_play_out = 1000
+                    x, y = self.mctsmove(n_play_out)
                     a = self.board.makeMove(self.board.boardstate, computer1Tile, x, y)
                     if a != False:
                         tilestoflip, tile, x, y = a
                         self.makeMove(tilestoflip, tile, x, y)
-                    self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, computer2Tile) != []:
                         turn = player2  # 回合结束，如果电脑玩家2能行动，则切换电脑玩家2回合
-
+                    round += 1
                 elif turn == player2:
                     # 电脑玩家2回合
                     if self.board.getValidmoves(self.board.boardstate, computer2Tile) == []:
@@ -923,7 +957,6 @@ class Game(object):
                     if a != 0:
                         tilestoflip, tile, x, y = a
                         self.makeMove(tilestoflip, tile, x, y)
-                    self.board.getBoardState()
                     if self.board.getValidmoves(self.board.boardstate, computer1Tile) != []:
                         turn = player1  # 回合结束，如果电脑玩家1能行动，则切换电脑玩家1回合
 
